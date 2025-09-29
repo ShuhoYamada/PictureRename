@@ -335,13 +335,13 @@ class MainWindow:
         # 入力値を取得
         values = self.input_panel.get_input_values()
         
-        # コード値を取得
-        material_code = self.excel_reader.get_material_code(values['material'])
-        processing_code = self.excel_reader.get_processing_method_code(values['processing'])
+        # ID値を取得
+        material_id = self.excel_reader.get_material_code(values['material'])
+        processing_id = self.excel_reader.get_processing_method_code(values['processing'])
         notes_code = self.input_panel.get_notes_code()
         
-        if not material_code or not processing_code:
-            messagebox.showerror("エラー", "素材または加工方法のコードが見つかりません。")
+        if not material_id or not processing_id:
+            messagebox.showerror("エラー", "素材または加工方法のIDが見つかりません。")
             return
         
         # ファイルリネーム実行
@@ -349,8 +349,8 @@ class MainWindow:
             values['part_name'],
             values['weight'],
             values['unit'],
-            material_code,
-            processing_code,
+            material_id,
+            processing_id,
             notes_code
         )
         
@@ -456,7 +456,7 @@ class MainWindow:
    • ←→: 前の画像/次の画像へ移動
 
 📋 ファイル名形式:
-   部品名_重量_単位_素材コード_加工方法コード_特記事項.拡張子
+   部品名_重量_単位_素材ID_加工ID_特記事項.拡張子
 """
         messagebox.showinfo("📖 使い方", help_text)
     
