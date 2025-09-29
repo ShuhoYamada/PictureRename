@@ -121,14 +121,14 @@ class FileHandler:
     
     def generate_new_filename(self, part_name: str, weight: str, unit: str,
                             material_code: str, processing_code: str,
-                            has_notes: str) -> str:
+                            photo_type_code: str, has_notes: str) -> str:
         """新しいファイル名を生成"""
         # 各パラメータをサニタイズ
         part_name = self.sanitize_filename(part_name)
         weight = self.sanitize_filename(weight)
         
-        # ファイル名を組み立て
-        filename = f"{part_name}_{weight}_{unit}_{material_code}_{processing_code}_{has_notes}"
+        # ファイル名を組み立て（写真区分を加工方法と特記事項の間に挿入）
+        filename = f"{part_name}_{weight}_{unit}_{material_code}_{processing_code}_{photo_type_code}_{has_notes}"
         
         return filename
     
@@ -142,7 +142,7 @@ class FileHandler:
     
     def rename_current_file(self, part_name: str, weight: str, unit: str,
                           material_code: str, processing_code: str,
-                          has_notes: str) -> bool:
+                          photo_type_code: str, has_notes: str) -> bool:
         """現在のファイルをリネーム"""
         current_path = self.get_current_image_path()
         if not current_path:
@@ -154,7 +154,7 @@ class FileHandler:
             
             # 新しいファイル名を生成
             new_filename = self.generate_new_filename(
-                part_name, weight, unit, material_code, processing_code, has_notes
+                part_name, weight, unit, material_code, processing_code, photo_type_code, has_notes
             )
             
             # 重複チェック

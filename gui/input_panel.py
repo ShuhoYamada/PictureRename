@@ -21,6 +21,7 @@ class InputPanel:
         self.unit_var = tk.StringVar(value="kg")  # デフォルト値
         self.material_var = tk.StringVar()
         self.processing_var = tk.StringVar()
+        self.photo_type_var = tk.StringVar(value="部品写真(P)")  # デフォルト値
         self.notes_var = tk.StringVar(value="なし(0)")  # デフォルト値
         
         # ウィジェットの参照
@@ -29,6 +30,7 @@ class InputPanel:
         self.unit_combo: Optional[ttk.Combobox] = None
         self.material_combo: Optional[ttk.Combobox] = None
         self.processing_combo: Optional[ttk.Combobox] = None
+        self.photo_type_combo: Optional[ttk.Combobox] = None
         self.notes_combo: Optional[ttk.Combobox] = None
         self.apply_button: Optional[tk.Button] = None
         
@@ -165,6 +167,21 @@ class InputPanel:
         )
         self.processing_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=5)
         
+        # 写真区分
+        self._create_input_section(
+            "📷 写真区分",
+            "写真の種類を選択してください"
+        )
+        self.photo_type_combo = ttk.Combobox(
+            self.parent_frame,
+            textvariable=self.photo_type_var,
+            values=["部品写真(P)", "素材込み(M)"],
+            font=("SF Pro Display", 11),
+            state="readonly",
+            style="Modern.TCombobox"
+        )
+        self.photo_type_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=5)
+        
         # 特記事項の有無
         self._create_input_section(
             "📝 特記事項",
@@ -212,7 +229,8 @@ class InputPanel:
         """入力検証とボタン状態の設定"""
         def on_input_change(*args):
             if self.validation_callback:
-                self.validation_callback()
+                # 入力変更時の検証は少し遅延させて、連続する変更を安定化
+                self.parent_frame.after(100, self.validation_callback)
         
         # 各変数の変更を監視
         self.part_name_var.trace('w', on_input_change)
@@ -220,6 +238,7 @@ class InputPanel:
         self.unit_var.trace('w', on_input_change)
         self.material_var.trace('w', on_input_change)
         self.processing_var.trace('w', on_input_change)
+        self.photo_type_var.trace('w', on_input_change)
         self.notes_var.trace('w', on_input_change)
     
     def set_validation_callback(self, callback: Callable):
@@ -251,6 +270,9 @@ class InputPanel:
         """テキスト入力項目をクリア（部品名と重量のみ）"""
         self.part_name_var.set("")
         self.weight_var.set("")
+        # クリア後は部品名フィールドにフォーカスを設定
+        if self.part_name_entry and self.part_name_entry['state'] == 'normal':
+            self.parent_frame.after(50, lambda: self.part_name_entry.focus_set())
     
     def get_input_values(self) -> Dict[str, str]:
         """現在の入力値を取得"""
@@ -260,8 +282,19 @@ class InputPanel:
             'unit': self.unit_var.get(),
             'material': self.material_var.get(),
             'processing': self.processing_var.get(),
+            'photo_type': self.photo_type_var.get(),
             'notes': self.notes_var.get()
         }
+    
+    def get_photo_type_code(self) -> str:
+        """写真区分からコードを取得"""
+        photo_type_value = self.photo_type_var.get()
+        if "部品写真(P)" in photo_type_value:
+            return "P"
+        elif "素材込み(M)" in photo_type_value:
+            return "M"
+        else:
+            return "P"  # デフォルト
     
     def get_notes_code(self) -> str:
         """特記事項の有無からコードを取得"""
@@ -280,6 +313,7 @@ class InputPanel:
             bool(values['unit']) and
             bool(values['material']) and
             bool(values['processing']) and
+            bool(values['photo_type']) and
             bool(values['notes'])
         )
     
@@ -295,28 +329,25 @@ class InputPanel:
         
         # 部品名
         if not values['part_name']:
-            self.part_name_entry.configure(bg="#ffcccc")
+            self.part_name_entry.configure(bg="#fef2f2")
         else:
-            self.part_name_entry.configure(bg="white")
+            self.part_name_entry.configure(bg="#f9fafb")
         
         # 重量
         if not values['weight']:
-            self.weight_entry.configure(bg="#ffcccc")
+            self.weight_entry.configure(bg="#fef2f2")
         else:
-            self.weight_entry.configure(bg="white")
+            self.weight_entry.configure(bg="#f9fafb")
         
-        # コンボボックスは背景色変更が困難なため、フォーカス設定で対応
-        if not values['material']:
-            self.material_combo.focus_set()
-        elif not values['processing']:
-            self.processing_combo.focus_set()
+        # コンボボックスのハイライトは視覚的な変更のみ（フォーカス移動を避ける）
+        # フォーカス設定は削除してテキストボックスの入力を妨げないようにする
     
     def clear_highlight(self):
         """ハイライトをクリア"""
         if self.part_name_entry:
-            self.part_name_entry.configure(bg="white")
+            self.part_name_entry.configure(bg="#f9fafb")
         if self.weight_entry:
-            self.weight_entry.configure(bg="white")
+            self.weight_entry.configure(bg="#f9fafb")
     
     def set_enabled(self, enabled: bool):
         """全フィールドの有効/無効を設定"""
@@ -333,5 +364,12 @@ class InputPanel:
             self.material_combo.configure(state=readonly_state)
         if self.processing_combo:
             self.processing_combo.configure(state=readonly_state)
+        if self.photo_type_combo:
+            self.photo_type_combo.configure(state=readonly_state)
         if self.notes_combo:
             self.notes_combo.configure(state=readonly_state)
+        
+        # 有効化された時は部品名フィールドにフォーカスを設定
+        if enabled and self.part_name_entry:
+            # 少し遅延させてフォーカスを確実に設定
+            self.parent_frame.after(100, lambda: self.part_name_entry.focus_set())

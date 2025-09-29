@@ -277,6 +277,10 @@ class MainWindow:
         
         if ready and not self._is_image_loaded():
             self._load_first_image()
+        
+        # 準備完了後、入力検証は少し遅延させて実行
+        if ready:
+            self.root.after(200, self._validate_inputs)
     
     def _is_ready(self) -> bool:
         """アプリケーションが使用可能な状態かチェック"""
@@ -321,8 +325,14 @@ class MainWindow:
         is_valid = self.input_panel.is_all_filled()
         self.input_panel.set_apply_button_state(is_valid)
         
+        # ハイライト処理は現在のフォーカス状態を考慮して実行
+        focused_widget = self.root.focus_get()
+        
         if not is_valid:
-            self.input_panel.highlight_empty_fields()
+            # テキスト入力中でない場合のみハイライトを適用
+            if (not focused_widget or 
+                focused_widget not in [self.input_panel.part_name_entry, self.input_panel.weight_entry]):
+                self.input_panel.highlight_empty_fields()
         else:
             self.input_panel.clear_highlight()
     
@@ -338,6 +348,7 @@ class MainWindow:
         # ID値を取得
         material_id = self.excel_reader.get_material_code(values['material'])
         processing_id = self.excel_reader.get_processing_method_code(values['processing'])
+        photo_type_code = self.input_panel.get_photo_type_code()
         notes_code = self.input_panel.get_notes_code()
         
         if not material_id or not processing_id:
@@ -351,6 +362,7 @@ class MainWindow:
             values['unit'],
             material_id,
             processing_id,
+            photo_type_code,
             notes_code
         )
         
@@ -456,7 +468,11 @@ class MainWindow:
    • ←→: 前の画像/次の画像へ移動
 
 📋 ファイル名形式:
-   部品名_重量_単位_素材ID_加工ID_特記事項.拡張子
+   部品名_重量_単位_素材ID_加工ID_写真区分_特記事項.拡張子
+   
+📷 写真区分:
+   • 部品写真(P): 部品のみの写真
+   • 素材込み(M): 素材情報込みの写真
 """
         messagebox.showinfo("📖 使い方", help_text)
     
