@@ -16,6 +16,9 @@ class ExcelReader:
         self.processing_methods: Dict[str, str] = {}  # 表示名 -> 加工ID
         self.materials_data: Dict[str, Dict[str, str]] = {}  # 素材IDの詳細データ
         self.processing_methods_data: Dict[str, Dict[str, str]] = {}  # 加工IDの詳細データ
+        # 素材区分対応の新しい属性
+        self.material_categories: Dict[str, List[str]] = {}  # 素材区分 -> 素材名リスト
+        self.material_name_to_id: Dict[str, str] = {}  # 素材名 -> 素材ID
     
     def select_and_load_materials_file(self) -> bool:
         """素材マスターファイルを選択し、読み込む"""
@@ -52,25 +55,68 @@ class ExcelReader:
             materials = {}  # display_name -> material_id のマッピング
             self.materials_data = {}  # material_id -> {name, description} の詳細データ
             
-            # ヘッダー行をスキップして2行目から読み込み
+            # ヘッダー行（1行目）から列インデックスを取得
+            header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True))
+            material_name_col = None
+            material_id_col = None
+            material_category_col = None
+            
+            # ヘッダー行から対象列を検索
+            for col_idx, header_value in enumerate(header_row):
+                if header_value:
+                    header_str = str(header_value).strip()
+                    if header_str == "素材名":
+                        material_name_col = col_idx
+                    elif header_str == "素材ID":
+                        material_id_col = col_idx
+                    elif header_str == "素材区分":
+                        material_category_col = col_idx
+            
+            if material_name_col is None or material_id_col is None or material_category_col is None:
+                messagebox.showerror("エラー", "素材マスターファイルに「素材名」「素材ID」または「素材区分」の列が見つかりません。")
+                return False
+            
+            # 2行目からデータを読み込み
+            self.material_categories = {}
+            self.material_name_to_id = {}
+            
             for row in sheet.iter_rows(min_row=2, values_only=True):
-                if row[0] and row[2]:  # A列（素材名）、C列（素材ID）ともに値がある場合
-                    material_name = str(row[0]).strip()
-                    material_description = str(row[1]).strip() if row[1] else ""
-                    material_id = str(row[2]).strip()
+                if len(row) > max(material_name_col, material_id_col, material_category_col):
+                    material_name = row[material_name_col]
+                    material_id = row[material_id_col]
+                    material_category = row[material_category_col]
                     
-                    if material_name and material_id:
-                        # ドロップダウン表示用の文字列を作成
-                        if material_description:
-                            display_name = f"{material_name} - {material_description}"
-                        else:
-                            display_name = material_name
+                    if material_name and material_id and material_category:
+                        material_name = str(material_name).strip()
+                        material_id = str(material_id).strip()
+                        material_category = str(material_category).strip()
                         
-                        materials[display_name] = material_id
-                        self.materials_data[material_id] = {
-                            'name': material_name,
-                            'description': material_description
-                        }
+                        # 説明列があれば取得（素材名の隣の列を想定）
+                        material_description = ""
+                        if len(row) > material_name_col + 1 and row[material_name_col + 1]:
+                            material_description = str(row[material_name_col + 1]).strip()
+                        
+                        if material_name and material_id and material_category:
+                            # 素材区分ごとの素材名リストを構築
+                            if material_category not in self.material_categories:
+                                self.material_categories[material_category] = []
+                            self.material_categories[material_category].append(material_name)
+                            
+                            # 素材名からIDへのマッピング
+                            self.material_name_to_id[material_name] = material_id
+                            
+                            # ドロップダウン表示用の文字列を作成（互換性のため保持）
+                            if material_description:
+                                display_name = f"{material_name} - {material_description}"
+                            else:
+                                display_name = material_name
+                            
+                            materials[display_name] = material_id
+                            self.materials_data[material_id] = {
+                                'name': material_name,
+                                'description': material_description,
+                                'category': material_category
+                            }
             
             if not materials:
                 messagebox.showerror("エラー", "素材マスターファイルにデータが見つかりません。")
@@ -93,25 +139,51 @@ class ExcelReader:
             processing_methods = {}  # display_name -> processing_id のマッピング
             self.processing_methods_data = {}  # processing_id -> {name, description} の詳細データ
             
-            # ヘッダー行をスキップして2行目から読み込み
+            # ヘッダー行（1行目）から列インデックスを取得
+            header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True))
+            method_name_col = None
+            method_id_col = None
+            
+            # ヘッダー行から対象列を検索
+            for col_idx, header_value in enumerate(header_row):
+                if header_value:
+                    header_str = str(header_value).strip()
+                    if header_str == "加工方法名":
+                        method_name_col = col_idx
+                    elif header_str == "加工ID":
+                        method_id_col = col_idx
+            
+            if method_name_col is None or method_id_col is None:
+                messagebox.showerror("エラー", "加工方法マスターファイルに「加工方法名」または「加工ID」の列が見つかりません。")
+                return False
+            
+            # 2行目からデータを読み込み
             for row in sheet.iter_rows(min_row=2, values_only=True):
-                if row[0] and row[2]:  # A列（加工方法）、C列（加工ID）ともに値がある場合
-                    method_name = str(row[0]).strip()
-                    method_description = str(row[1]).strip() if row[1] else ""
-                    method_id = str(row[2]).strip()
+                if len(row) > max(method_name_col, method_id_col):
+                    method_name = row[method_name_col]
+                    method_id = row[method_id_col]
                     
                     if method_name and method_id:
-                        # ドロップダウン表示用の文字列を作成
-                        if method_description:
-                            display_name = f"{method_name} - {method_description}"
-                        else:
-                            display_name = method_name
+                        method_name = str(method_name).strip()
+                        method_id = str(method_id).strip()
                         
-                        processing_methods[display_name] = method_id
-                        self.processing_methods_data[method_id] = {
-                            'name': method_name,
-                            'description': method_description
-                        }
+                        # 説明列があれば取得（加工方法名の隣の列を想定）
+                        method_description = ""
+                        if len(row) > method_name_col + 1 and row[method_name_col + 1]:
+                            method_description = str(row[method_name_col + 1]).strip()
+                        
+                        if method_name and method_id:
+                            # ドロップダウン表示用の文字列を作成
+                            if method_description:
+                                display_name = f"{method_name} - {method_description}"
+                            else:
+                                display_name = method_name
+                            
+                            processing_methods[display_name] = method_id
+                            self.processing_methods_data[method_id] = {
+                                'name': method_name,
+                                'description': method_description
+                            }
             
             if not processing_methods:
                 messagebox.showerror("エラー", "加工方法マスターファイルにデータが見つかりません。")
@@ -152,3 +224,15 @@ class ExcelReader:
     def is_ready(self) -> bool:
         """両方のマスターファイルが読み込まれているかチェック"""
         return bool(self.materials) and bool(self.processing_methods)
+    
+    def get_material_categories_list(self) -> List[str]:
+        """素材区分のリストを取得"""
+        return list(self.material_categories.keys())
+    
+    def get_materials_by_category(self, category: str) -> List[str]:
+        """指定された素材区分に属する素材名のリストを取得"""
+        return self.material_categories.get(category, [])
+    
+    def get_material_id_by_name(self, material_name: str) -> Optional[str]:
+        """素材名から素材IDを取得"""
+        return self.material_name_to_id.get(material_name)

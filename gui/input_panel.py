@@ -14,21 +14,24 @@ class InputPanel:
     def __init__(self, parent_frame: tk.Frame):
         self.parent_frame = parent_frame
         self.validation_callback: Optional[Callable] = None
+        self.excel_reader = None  # ExcelReaderインスタンスへの参照
         
         # 入力フィールドの変数
         self.part_name_var = tk.StringVar()
         self.weight_var = tk.StringVar()
         self.unit_var = tk.StringVar(value="kg")  # デフォルト値
-        self.material_var = tk.StringVar()
+        self.material_category_var = tk.StringVar()  # 素材区分
+        self.material_var = tk.StringVar()  # 素材名
         self.processing_var = tk.StringVar()
-        self.photo_type_var = tk.StringVar(value="部品写真(P)")  # デフォルト値
-        self.notes_var = tk.StringVar(value="なし(0)")  # デフォルト値
+        self.photo_type_var = tk.StringVar(value="部品写真(P) - 部品のみの写真")  # デフォルト値
+        self.notes_var = tk.StringVar(value="なし(0) - 特記事項なし")  # デフォルト値
         
         # ウィジェットの参照
         self.part_name_entry: Optional[tk.Entry] = None
         self.weight_entry: Optional[tk.Entry] = None
         self.unit_combo: Optional[ttk.Combobox] = None
-        self.material_combo: Optional[ttk.Combobox] = None
+        self.material_category_combo: Optional[ttk.Combobox] = None  # 素材区分
+        self.material_combo: Optional[ttk.Combobox] = None  # 素材名
         self.processing_combo: Optional[ttk.Combobox] = None
         self.photo_type_combo: Optional[ttk.Combobox] = None
         self.notes_combo: Optional[ttk.Combobox] = None
@@ -139,23 +142,37 @@ class InputPanel:
         )
         self.unit_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=5)
         
-        # 素材
+        # 素材区分
         self._create_input_section(
-            "🧩 素材",
-            "Excelマスターから素材を選択してください"
+            "🧩 素材区分 (必須)",
+            "Excelマスターから素材区分を選択してください"
+        )
+        self.material_category_combo = ttk.Combobox(
+            self.parent_frame,
+            textvariable=self.material_category_var,
+            font=("SF Pro Display", 11),
+            state="readonly",
+            style="Modern.TCombobox"
+        )
+        self.material_category_combo.pack(padx=20, pady=(5, 10), fill="x", ipady=6)
+        
+        # 素材名
+        self._create_input_section(
+            "📦 素材名 (必須)",
+            "素材区分を選択した後、素材名を選択してください"
         )
         self.material_combo = ttk.Combobox(
             self.parent_frame,
             textvariable=self.material_var,
             font=("SF Pro Display", 11),
-            state="readonly",
+            state="disabled",  # 初期状態は非活性
             style="Modern.TCombobox"
         )
-        self.material_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=5)
+        self.material_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=6)
         
         # 加工方法
         self._create_input_section(
-            "⚙️ 加工方法",
+            "⚙️ 加工方法 (必須)",
             "Excelマスターから加工方法を選択してください"
         )
         self.processing_combo = ttk.Combobox(
@@ -165,37 +182,39 @@ class InputPanel:
             state="readonly",
             style="Modern.TCombobox"
         )
-        self.processing_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=5)
+        self.processing_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=6)
         
         # 写真区分
         self._create_input_section(
-            "📷 写真区分",
-            "写真の種類を選択してください"
+            "📷 写真区分 (必須)",
+            "撮影した写真の種類を選択してください - P: 部品のみ / M: 素材も含む"
         )
         self.photo_type_combo = ttk.Combobox(
             self.parent_frame,
             textvariable=self.photo_type_var,
-            values=["部品写真(P)", "素材込み(M)"],
+            values=["部品写真(P) - 部品のみの写真", "素材込み(M) - 素材も含む写真"],
             font=("SF Pro Display", 11),
             state="readonly",
-            style="Modern.TCombobox"
+            style="Modern.TCombobox",
+            width=40
         )
-        self.photo_type_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=5)
+        self.photo_type_combo.pack(padx=20, pady=(5, 20), fill="x", ipady=8)
         
         # 特記事項の有無
         self._create_input_section(
-            "📝 特記事項",
-            "特記事項の有無を選択してください"
+            "📝 特記事項 (必須)",
+            "この部品に特記事項があるかどうかを選択してください"
         )
         self.notes_combo = ttk.Combobox(
             self.parent_frame,
             textvariable=self.notes_var,
-            values=["なし(0)", "ある(1)"],
+            values=["なし(0) - 特記事項なし", "ある(1) - 特記事項あり"],
             font=("SF Pro Display", 11),
             state="readonly",
-            style="Modern.TCombobox"
+            style="Modern.TCombobox",
+            width=40
         )
-        self.notes_combo.pack(padx=20, pady=(5, 15), fill="x", ipady=5)
+        self.notes_combo.pack(padx=20, pady=(5, 20), fill="x", ipady=8)
         
         # 適用&次へボタン
         button_frame = tk.Frame(self.parent_frame, bg="#ffffff")
@@ -236,6 +255,7 @@ class InputPanel:
         self.part_name_var.trace('w', on_input_change)
         self.weight_var.trace('w', on_input_change)
         self.unit_var.trace('w', on_input_change)
+        self.material_category_var.trace('w', self._on_material_category_change)
         self.material_var.trace('w', on_input_change)
         self.processing_var.trace('w', on_input_change)
         self.photo_type_var.trace('w', on_input_change)
@@ -250,8 +270,66 @@ class InputPanel:
         if self.apply_button:
             self.apply_button.configure(command=callback)
     
+    def set_excel_reader(self, excel_reader):
+        """ExcelReaderインスタンスを設定"""
+        self.excel_reader = excel_reader
+    
+    def set_scroll_callback(self, callback):
+        """スクロールコールバックを設定"""
+        self.scroll_callback = callback
+        
+        # 各入力フィールドにフォーカスイベントを設定
+        if hasattr(self, 'part_name_entry') and self.part_name_entry:
+            self.part_name_entry.bind('<FocusIn>', lambda e: self._scroll_to_widget(e.widget))
+        if hasattr(self, 'weight_entry') and self.weight_entry:
+            self.weight_entry.bind('<FocusIn>', lambda e: self._scroll_to_widget(e.widget))
+    
+    def _scroll_to_widget(self, widget):
+        """指定されたウィジェットが見える位置にスクロール"""
+        if hasattr(self, 'scroll_callback') and self.scroll_callback:
+            self.scroll_callback(widget)
+    
+    def _on_material_category_change(self, *args):
+        """素材区分が変更された時の処理"""
+        if not self.excel_reader:
+            return
+            
+        selected_category = self.material_category_var.get()
+        
+        if selected_category:
+            # 選択された区分の素材名リストを取得
+            materials = self.excel_reader.get_materials_by_category(selected_category)
+            
+            # 素材名ドロップダウンを更新して活性化
+            if self.material_combo:
+                self.material_combo['values'] = materials
+                self.material_combo['state'] = 'readonly'
+                self.material_var.set("")  # 現在の選択をクリア
+                
+                # バリデーションコールバックがあれば呼び出し
+                if self.validation_callback:
+                    self.validation_callback()
+        else:
+            # 素材区分が未選択の場合、素材名を非活性に
+            if self.material_combo:
+                self.material_combo['values'] = []
+                self.material_combo['state'] = 'disabled'
+                self.material_var.set("")
+                
+                # バリデーションコールバックがあれば呼び出し
+                if self.validation_callback:
+                    self.validation_callback()
+    
+    def update_material_categories_list(self, categories: List[str]):
+        """素材区分リストを更新"""
+        if self.material_category_combo:
+            self.material_category_combo['values'] = categories
+            if categories and not self.material_category_var.get():
+                # デフォルト選択はしない（空のまま）
+                pass
+    
     def update_material_list(self, materials: List[str]):
-        """素材リストを更新"""
+        """素材リストを更新（互換性のため保持）"""
         if self.material_combo:
             self.material_combo['values'] = materials
             if materials and not self.material_var.get():
@@ -267,12 +345,22 @@ class InputPanel:
                 pass
     
     def clear_text_inputs(self):
-        """テキスト入力項目をクリア（部品名と重量のみ）"""
-        self.part_name_var.set("")
-        self.weight_var.set("")
-        # クリア後は部品名フィールドにフォーカスを設定
+        """テキスト入力項目をクリア（部品名と重量のみ）- 現在は保持するため何もしない"""
+        # 部品名と重量は保持するためクリアしない
+        # self.part_name_var.set("")
+        # self.weight_var.set("")
+        pass
+    
+    def set_focus_to_part_name(self):
+        """部品名フィールドにフォーカスを設定"""
         if self.part_name_entry and self.part_name_entry['state'] == 'normal':
             self.parent_frame.after(50, lambda: self.part_name_entry.focus_set())
+    
+    def force_clear_text_inputs(self):
+        """部品名と重量を強制的にクリア（明示的にクリアしたい場合用）"""
+        self.part_name_var.set("")
+        self.weight_var.set("")
+        self.set_focus_to_part_name()
     
     def get_input_values(self) -> Dict[str, str]:
         """現在の入力値を取得"""
@@ -280,11 +368,18 @@ class InputPanel:
             'part_name': self.part_name_var.get().strip(),
             'weight': self.weight_var.get().strip(),
             'unit': self.unit_var.get(),
+            'material_category': self.material_category_var.get(),
             'material': self.material_var.get(),
             'processing': self.processing_var.get(),
             'photo_type': self.photo_type_var.get(),
             'notes': self.notes_var.get()
         }
+    
+    def get_material_id(self) -> Optional[str]:
+        """選択された素材名から素材IDを取得"""
+        if self.excel_reader and self.material_var.get():
+            return self.excel_reader.get_material_id_by_name(self.material_var.get())
+        return None
     
     def get_photo_type_code(self) -> str:
         """写真区分からコードを取得"""
@@ -311,6 +406,7 @@ class InputPanel:
             bool(values['part_name']) and
             bool(values['weight']) and
             bool(values['unit']) and
+            bool(values['material_category']) and
             bool(values['material']) and
             bool(values['processing']) and
             bool(values['photo_type']) and
@@ -360,8 +456,14 @@ class InputPanel:
             self.weight_entry.configure(state=state)
         if self.unit_combo:
             self.unit_combo.configure(state=readonly_state)
+        if self.material_category_combo:
+            self.material_category_combo.configure(state=readonly_state)
         if self.material_combo:
-            self.material_combo.configure(state=readonly_state)
+            # 素材名は素材区分が選択されている場合のみ有効
+            if enabled and self.material_category_var.get():
+                self.material_combo.configure(state="readonly")
+            else:
+                self.material_combo.configure(state="disabled")
         if self.processing_combo:
             self.processing_combo.configure(state=readonly_state)
         if self.photo_type_combo:

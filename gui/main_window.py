@@ -46,6 +46,27 @@ class MainWindow:
         self._create_layout()
         self._setup_callbacks()
         self._setup_keyboard_shortcuts()
+        
+        # InputPanelにExcelReaderを設定
+        if self.input_panel:
+            self.input_panel.set_excel_reader(self.excel_reader)
+            self.input_panel.set_scroll_callback(self._scroll_to_widget)
+    
+    def _scroll_to_widget(self, widget):
+        """指定されたウィジェットが見える位置にスクロール"""
+        if hasattr(self, 'canvas') and hasattr(self, 'scrollable_frame'):
+            # ウィジェットの位置を取得
+            widget.update_idletasks()
+            x1, y1, x2, y2 = self.canvas.bbox("all")
+            height = self.canvas.winfo_height()
+            
+            # ウィジェットの相対位置を計算
+            widget_y = widget.winfo_y() + widget.winfo_height() // 2
+            
+            # スクロール位置を調整
+            if y2 > height:
+                scroll_top = widget_y / y2
+                self.canvas.yview_moveto(max(0, scroll_top - 0.1))
     
     def _create_menu(self):
         """メニューバーを作成"""
@@ -59,6 +80,8 @@ class MainWindow:
         file_menu.add_command(label="加工方法マスターを読み込み", command=self._load_processing_methods)
         file_menu.add_separator()
         file_menu.add_command(label="画像フォルダを選択", command=self._select_image_folder)
+        file_menu.add_separator()
+        file_menu.add_command(label="部品名・重量をクリア", command=self._clear_text_inputs)
         file_menu.add_separator()
         file_menu.add_command(label="終了", command=self.root.quit)
         
@@ -171,19 +194,56 @@ class MainWindow:
         content_frame = tk.Frame(main_frame, bg=self.colors['background'])
         content_frame.pack(fill="both", expand=True)
         
-        # 左側：入力パネル（カード風）
-        left_frame = tk.Frame(
+        # 左側：入力パネル（スクロール可能なカード風）
+        left_container = tk.Frame(
             content_frame, 
             width=450, 
             bg=self.colors['surface'], 
             relief="flat",
             bd=0
         )
-        left_frame.pack(side="left", fill="y", padx=(5, 10), pady=5)
-        left_frame.pack_propagate(False)  # サイズ固定
+        left_container.pack(side="left", fill="y", padx=(5, 10), pady=5)
+        left_container.pack_propagate(False)  # サイズ固定
+        
+        # スクロール可能なキャンバスとスクロールバーを作成
+        self.canvas = tk.Canvas(
+            left_container,
+            bg=self.colors['surface'],
+            highlightthickness=0,
+            bd=0
+        )
+        scrollbar = tk.Scrollbar(left_container, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = tk.Frame(self.canvas, bg=self.colors['surface'])
+        
+        # スクロールの設定
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+        
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # キャンバスとスクロールバーを配置
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # マウスホイールスクロールを有効化
+        def _on_mousewheel(event):
+            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        # マウスがキャンバス上にある時のみスクロールを有効化
+        def _bind_to_mousewheel(event):
+            self.canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbind_from_mousewheel(event):
+            self.canvas.unbind_all("<MouseWheel>")
+        
+        self.canvas.bind('<Enter>', _bind_to_mousewheel)
+        self.canvas.bind('<Leave>', _unbind_from_mousewheel)
         
         # 左フレームのシャドウ
-        left_shadow = tk.Frame(left_frame, bg="#e2e8f0", height=2)
+        left_shadow = tk.Frame(left_container, bg="#e2e8f0", height=2)
         left_shadow.pack(fill="x", side="bottom")
         
         # 右側：画像表示パネル（カード風）
@@ -199,8 +259,8 @@ class MainWindow:
         right_shadow = tk.Frame(right_frame, bg="#e2e8f0", height=2)
         right_shadow.pack(fill="x", side="bottom")
         
-        # 入力パネルの作成
-        self.input_panel = InputPanel(left_frame)
+        # 入力パネルの作成（スクロール可能なフレーム内に配置）
+        self.input_panel = InputPanel(self.scrollable_frame)
         
         # 画像表示パネルの作成
         self.image_viewer = ImageViewer(right_frame)
@@ -228,10 +288,36 @@ class MainWindow:
         self.root.bind('<Return>', self._on_enter_pressed)
         self.root.bind('<Left>', lambda e: self._go_to_previous_image())
         self.root.bind('<Right>', lambda e: self._go_to_next_image())
+        
+        # スクロール用のキーボードショートカット
+        self.root.bind('<Up>', self._scroll_up)
+        self.root.bind('<Down>', self._scroll_down)
+        self.root.bind('<Page_Up>', lambda e: self.canvas.yview_scroll(-5, "units"))
+        self.root.bind('<Page_Down>', lambda e: self.canvas.yview_scroll(5, "units"))
+    
+    def _scroll_up(self, event):
+        """上スクロール"""
+        if hasattr(self, 'canvas'):
+            self.canvas.yview_scroll(-1, "units")
+    
+    def _scroll_down(self, event):
+        """下スクロール"""
+        if hasattr(self, 'canvas'):
+            self.canvas.yview_scroll(1, "units")
+    
+    def _clear_text_inputs(self):
+        """部品名・重量入力欄をクリア"""
+        if self.input_panel:
+            self.input_panel.force_clear_text_inputs()
     
     def _load_materials(self):
         """素材マスターを読み込み"""
         if self.excel_reader.select_and_load_materials_file():
+            # 素材区分リストを更新
+            self.input_panel.update_material_categories_list(
+                self.excel_reader.get_material_categories_list()
+            )
+            # 互換性のため従来のリストも更新
             self.input_panel.update_material_list(self.excel_reader.get_materials_list())
             self.materials_button.configure(
                 bg="#22c55e", 
@@ -295,6 +381,9 @@ class MainWindow:
         """最初の画像を読み込み"""
         self._update_image_display()
         self._update_ui_state()
+        # 最初の画像読み込み時にフォーカスを設定
+        if self.input_panel:
+            self.input_panel.set_focus_to_part_name()
     
     def _update_image_display(self):
         """現在の画像を表示"""
@@ -346,7 +435,7 @@ class MainWindow:
         values = self.input_panel.get_input_values()
         
         # ID値を取得
-        material_id = self.excel_reader.get_material_code(values['material'])
+        material_id = self.input_panel.get_material_id()  # 新しいメソッドを使用
         processing_id = self.excel_reader.get_processing_method_code(values['processing'])
         photo_type_code = self.input_panel.get_photo_type_code()
         notes_code = self.input_panel.get_notes_code()
@@ -372,7 +461,7 @@ class MainWindow:
         # 次の画像に移動
         if self.file_handler.has_next_image():
             self.file_handler.next_image()
-            self.input_panel.clear_text_inputs()  # 部品名と重量のみクリア
+            self.input_panel.set_focus_to_part_name()  # フォーカスのみ設定、データは保持
             self._update_image_display()
             self._update_ui_state()
         else:
@@ -383,7 +472,7 @@ class MainWindow:
         """前の画像に移動"""
         if self.file_handler.has_previous_image():
             self.file_handler.previous_image()
-            self.input_panel.clear_text_inputs()
+            self.input_panel.set_focus_to_part_name()  # フォーカスのみ設定、データは保持
             self._update_image_display()
             self._update_ui_state()
     
@@ -391,7 +480,7 @@ class MainWindow:
         """次の画像に移動（リネームなし）"""
         if self.file_handler.has_next_image():
             self.file_handler.next_image()
-            self.input_panel.clear_text_inputs()
+            self.input_panel.set_focus_to_part_name()  # フォーカスのみ設定、データは保持
             self._update_image_display()
             self._update_ui_state()
     

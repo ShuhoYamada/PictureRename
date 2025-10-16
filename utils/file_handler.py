@@ -127,10 +127,38 @@ class FileHandler:
         part_name = self.sanitize_filename(part_name)
         weight = self.sanitize_filename(weight)
         
-        # ファイル名を組み立て（写真区分を加工方法と特記事項の間に挿入）
-        filename = f"{part_name}_{weight}_{unit}_{material_code}_{processing_code}_{photo_type_code}_{has_notes}"
+        # 連番を取得
+        number = self._get_next_number()
+        
+        # ファイル名を組み立て（番号を先頭に追加）
+        filename = f"{number}_{part_name}_{weight}_{unit}_{material_code}_{processing_code}_{photo_type_code}_{has_notes}"
         
         return filename
+    
+    def _get_next_number(self) -> int:
+        """フォルダ内の既存ファイルから次の連番を取得"""
+        if not self.image_folder:
+            return 1
+        
+        folder_path = Path(self.image_folder)
+        max_number = 0
+        
+        # 画像拡張子のリスト
+        image_extensions = {'.jpg', '.jpeg', '.png', '.heic', '.tiff', '.bmp', '.gif'}
+        
+        # フォルダ内のすべての画像ファイルを調べる
+        for file_path in folder_path.iterdir():
+            if file_path.is_file() and file_path.suffix.lower() in image_extensions:
+                # ファイル名から番号を抽出（最初のアンダースコアまでの部分）
+                filename = file_path.stem
+                parts = filename.split('_')
+                
+                # 最初の部分が数字の場合のみ処理（リネーム済みファイル）
+                if parts and parts[0].isdigit():
+                    number = int(parts[0])
+                    max_number = max(max_number, number)
+        
+        return max_number + 1
     
     def check_file_exists(self, new_filename: str, extension: str) -> bool:
         """指定されたファイル名が既に存在するかチェック"""
@@ -157,7 +185,7 @@ class FileHandler:
                 part_name, weight, unit, material_code, processing_code, photo_type_code, has_notes
             )
             
-            # 重複チェック
+            # 重複チェック（連番があるため基本的に重複しないが念のため）
             if self.check_file_exists(new_filename, extension):
                 current_filename = current_file.stem + extension
                 new_full_filename = new_filename + extension
@@ -167,7 +195,7 @@ class FileHandler:
                     messagebox.showwarning("警告", 
                                          f"同名のファイルが既に存在します。\\n"
                                          f"ファイル名: {new_full_filename}\\n"
-                                         f"部品名または重量を修正してください。")
+                                         f"予期しない重複です。")
                     return False
             
             # リネーム実行
@@ -194,3 +222,19 @@ class FileHandler:
     def is_last_file(self) -> bool:
         """最後のファイルかチェック"""
         return self.current_index == len(self.image_files) - 1
+    
+    def preview_filename(self, part_name: str, weight: str, unit: str,
+                        material_code: str, processing_code: str,
+                        photo_type_code: str, has_notes: str) -> str:
+        """生成されるファイル名をプレビュー（拡張子付き）"""
+        if not self.get_current_image_path():
+            return ""
+        
+        current_path = Path(self.get_current_image_path())
+        extension = current_path.suffix
+        
+        new_filename = self.generate_new_filename(
+            part_name, weight, unit, material_code, processing_code, photo_type_code, has_notes
+        )
+        
+        return f"{new_filename}{extension}"

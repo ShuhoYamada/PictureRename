@@ -1,0 +1,4 @@
+(.venv) nagai@dh167225 PictureRename % conda activate nagai
+
+(nagai) (.venv) nagai@dh167225 PictureRename % python main.
+py
