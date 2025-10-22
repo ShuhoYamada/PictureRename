@@ -121,21 +121,24 @@ class FileHandler:
     
     def generate_new_filename(self, part_name: str, weight: str, unit: str,
                             material_code: str, processing_code: str,
-                            photo_type_code: str, has_notes: str) -> str:
+                            photo_type_code: str, has_notes: str, manual_number: str = "") -> str:
         """新しいファイル名を生成"""
         # 各パラメータをサニタイズ
         part_name = self.sanitize_filename(part_name)
         weight = self.sanitize_filename(weight)
         
-        # 連番を取得
-        number = self._get_next_number()
+        # 連番を取得（手動番号がある場合はそれを使用、なければ自動番号）
+        if manual_number and manual_number.isdigit():
+            number = int(manual_number)
+        else:
+            number = self.get_next_number()
         
         # ファイル名を組み立て（番号を先頭に追加）
         filename = f"{number}_{part_name}_{weight}_{unit}_{material_code}_{processing_code}_{photo_type_code}_{has_notes}"
         
         return filename
     
-    def _get_next_number(self) -> int:
+    def get_next_number(self) -> int:
         """フォルダ内の既存ファイルから次の連番を取得"""
         if not self.image_folder:
             return 1
@@ -170,7 +173,7 @@ class FileHandler:
     
     def rename_current_file(self, part_name: str, weight: str, unit: str,
                           material_code: str, processing_code: str,
-                          photo_type_code: str, has_notes: str) -> bool:
+                          photo_type_code: str, has_notes: str, manual_number: str = "") -> bool:
         """現在のファイルをリネーム"""
         current_path = self.get_current_image_path()
         if not current_path:
@@ -180,9 +183,9 @@ class FileHandler:
             current_file = Path(current_path)
             extension = current_file.suffix
             
-            # 新しいファイル名を生成
+            # 新しいファイル名を生成（手動番号を渡す）
             new_filename = self.generate_new_filename(
-                part_name, weight, unit, material_code, processing_code, photo_type_code, has_notes
+                part_name, weight, unit, material_code, processing_code, photo_type_code, has_notes, manual_number
             )
             
             # 重複チェック（連番があるため基本的に重複しないが念のため）

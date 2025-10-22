@@ -381,6 +381,8 @@ class MainWindow:
         """最初の画像を読み込み"""
         self._update_image_display()
         self._update_ui_state()
+        # 番号を自動設定
+        self._auto_set_number()
         # 最初の画像読み込み時にフォーカスを設定
         if self.input_panel:
             self.input_panel.set_focus_to_part_name()
@@ -425,6 +427,14 @@ class MainWindow:
         else:
             self.input_panel.clear_highlight()
     
+    def _auto_set_number(self):
+        """番号を自動設定"""
+        if self.input_panel and hasattr(self.input_panel, 'number_var'):
+            # 常に最新の自動番号を設定
+            next_number = self.file_handler.get_next_number()
+            print(f"デバッグ: 自動番号を {next_number} に設定")
+            self.input_panel.number_var.set(str(next_number))
+    
     def _apply_and_next(self):
         """現在の設定を適用して次の画像に進む"""
         if not self.input_panel.is_all_filled():
@@ -433,6 +443,9 @@ class MainWindow:
         
         # 入力値を取得
         values = self.input_panel.get_input_values()
+        
+        # 手動で入力された番号を取得（空の場合は自動番号を使用）
+        manual_number = self.input_panel.number_var.get().strip() if hasattr(self.input_panel, 'number_var') else ""
         
         # ID値を取得
         material_id = self.input_panel.get_material_id()  # 新しいメソッドを使用
@@ -444,7 +457,7 @@ class MainWindow:
             messagebox.showerror("エラー", "素材または加工方法のIDが見つかりません。")
             return
         
-        # ファイルリネーム実行
+        # ファイルリネーム実行（手動番号を含む）
         success = self.file_handler.rename_current_file(
             values['part_name'],
             values['weight'],
@@ -452,7 +465,8 @@ class MainWindow:
             material_id,
             processing_id,
             photo_type_code,
-            notes_code
+            notes_code,
+            manual_number  # 手動番号を追加
         )
         
         if not success:
@@ -461,6 +475,7 @@ class MainWindow:
         # 次の画像に移動
         if self.file_handler.has_next_image():
             self.file_handler.next_image()
+            self._auto_set_number()  # 番号を自動設定（画像移動直後）
             self.input_panel.set_focus_to_part_name()  # フォーカスのみ設定、データは保持
             self._update_image_display()
             self._update_ui_state()
@@ -472,6 +487,7 @@ class MainWindow:
         """前の画像に移動"""
         if self.file_handler.has_previous_image():
             self.file_handler.previous_image()
+            self._auto_set_number()  # 番号を自動設定（画像移動直後）
             self.input_panel.set_focus_to_part_name()  # フォーカスのみ設定、データは保持
             self._update_image_display()
             self._update_ui_state()
@@ -480,6 +496,7 @@ class MainWindow:
         """次の画像に移動（リネームなし）"""
         if self.file_handler.has_next_image():
             self.file_handler.next_image()
+            self._auto_set_number()  # 番号を自動設定（画像移動直後）
             self.input_panel.set_focus_to_part_name()  # フォーカスのみ設定、データは保持
             self._update_image_display()
             self._update_ui_state()

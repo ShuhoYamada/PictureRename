@@ -17,6 +17,7 @@ class InputPanel:
         self.excel_reader = None  # ExcelReaderインスタンスへの参照
         
         # 入力フィールドの変数
+        self.number_var = tk.StringVar()  # 番号
         self.part_name_var = tk.StringVar()
         self.weight_var = tk.StringVar()
         self.unit_var = tk.StringVar(value="kg")  # デフォルト値
@@ -27,6 +28,7 @@ class InputPanel:
         self.notes_var = tk.StringVar(value="なし(0) - 特記事項なし")  # デフォルト値
         
         # ウィジェットの参照
+        self.number_entry: Optional[tk.Entry] = None  # 番号
         self.part_name_entry: Optional[tk.Entry] = None
         self.weight_entry: Optional[tk.Entry] = None
         self.unit_combo: Optional[ttk.Combobox] = None
@@ -39,6 +41,7 @@ class InputPanel:
         
         # 半角英数字のみ許可する入力検証用
         self.weight_validation = parent_frame.register(self._validate_weight_input)
+        self.number_validation = parent_frame.register(self._validate_number_input)
         
         self._create_widgets()
         self._setup_validation()
@@ -77,6 +80,27 @@ class InputPanel:
             fg="#1f2937",
             bg="#ffffff"
         ).pack(anchor="w")
+        
+        # 番号
+        self._create_input_section(
+            "🔢 番号",
+            "ファイル名の先頭番号（自動設定値を編集可能）"
+        )
+        self.number_entry = tk.Entry(
+            self.parent_frame, 
+            textvariable=self.number_var,
+            font=("SF Pro Display", 11),
+            bg="#f9fafb",
+            fg="#1f2937",
+            relief="flat",
+            bd=1,
+            highlightthickness=2,
+            highlightcolor="#3b82f6",
+            highlightbackground="#e5e7eb",
+            validate="key",
+            validatecommand=(self.number_validation, '%S')
+        )
+        self.number_entry.pack(padx=20, pady=(5, 15), fill="x", ipady=5)
         
         # 部品名
         self._create_input_section(
@@ -244,6 +268,13 @@ class InputPanel:
         # 半角英数字、小数点、ハイフンのみ許可
         return bool(re.match(r'^[0-9a-zA-Z.-]*$', value))
     
+    def _validate_number_input(self, value: str) -> bool:
+        """番号入力の検証（数字のみ許可）"""
+        if value == "":
+            return True
+        # 数字のみ許可
+        return value.isdigit()
+    
     def _setup_validation(self):
         """入力検証とボタン状態の設定"""
         def on_input_change(*args):
@@ -255,6 +286,7 @@ class InputPanel:
         self.part_name_var.trace('w', on_input_change)
         self.weight_var.trace('w', on_input_change)
         self.unit_var.trace('w', on_input_change)
+        self.number_var.trace('w', on_input_change)
         self.material_category_var.trace('w', self._on_material_category_change)
         self.material_var.trace('w', on_input_change)
         self.processing_var.trace('w', on_input_change)
@@ -279,6 +311,8 @@ class InputPanel:
         self.scroll_callback = callback
         
         # 各入力フィールドにフォーカスイベントを設定
+        if hasattr(self, 'number_entry') and self.number_entry:
+            self.number_entry.bind('<FocusIn>', lambda e: self._scroll_to_widget(e.widget))
         if hasattr(self, 'part_name_entry') and self.part_name_entry:
             self.part_name_entry.bind('<FocusIn>', lambda e: self._scroll_to_widget(e.widget))
         if hasattr(self, 'weight_entry') and self.weight_entry:
@@ -365,6 +399,7 @@ class InputPanel:
     def get_input_values(self) -> Dict[str, str]:
         """現在の入力値を取得"""
         return {
+            'number': self.number_var.get().strip(),
             'part_name': self.part_name_var.get().strip(),
             'weight': self.weight_var.get().strip(),
             'unit': self.unit_var.get(),
@@ -423,6 +458,12 @@ class InputPanel:
         """未入力フィールドをハイライト"""
         values = self.get_input_values()
         
+        # 番号
+        if not values['number']:
+            self.number_entry.configure(bg="#fef2f2")
+        else:
+            self.number_entry.configure(bg="#f9fafb")
+        
         # 部品名
         if not values['part_name']:
             self.part_name_entry.configure(bg="#fef2f2")
@@ -440,6 +481,8 @@ class InputPanel:
     
     def clear_highlight(self):
         """ハイライトをクリア"""
+        if self.number_entry:
+            self.number_entry.configure(bg="#f9fafb")
         if self.part_name_entry:
             self.part_name_entry.configure(bg="#f9fafb")
         if self.weight_entry:
@@ -450,6 +493,8 @@ class InputPanel:
         state = "normal" if enabled else "disabled"
         readonly_state = "readonly" if enabled else "disabled"
         
+        if self.number_entry:
+            self.number_entry.configure(state=state)
         if self.part_name_entry:
             self.part_name_entry.configure(state=state)
         if self.weight_entry:
