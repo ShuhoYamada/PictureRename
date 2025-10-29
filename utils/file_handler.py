@@ -139,12 +139,12 @@ class FileHandler:
         return filename
     
     def get_next_number(self) -> int:
-        """フォルダ内の既存ファイルから次の連番を取得"""
+        """フォルダ内の既存ファイルから次のペア番号を取得（1, 1, 2, 2, 3, 3...）"""
         if not self.image_folder:
             return 1
         
         folder_path = Path(self.image_folder)
-        max_number = 0
+        number_counts = {}  # 番号ごとのファイル数をカウント
         
         # 画像拡張子のリスト
         image_extensions = {'.jpg', '.jpeg', '.png', '.heic', '.tiff', '.bmp', '.gif'}
@@ -159,9 +159,24 @@ class FileHandler:
                 # 最初の部分が数字の場合のみ処理（リネーム済みファイル）
                 if parts and parts[0].isdigit():
                     number = int(parts[0])
-                    max_number = max(max_number, number)
+                    number_counts[number] = number_counts.get(number, 0) + 1
         
-        return max_number + 1
+        # ペア番号ロジック：1, 1, 2, 2, 3, 3...
+        if not number_counts:
+            return 1  # 最初のファイル
+        
+        max_number = max(number_counts.keys())
+        
+        # 最大番号のファイル数をチェック
+        if number_counts[max_number] < 2:
+            # 最大番号がまだ2個未満の場合、同じ番号を返す
+            print(f"デバッグ: 番号 {max_number} は {number_counts[max_number]} 個存在、同じ番号 {max_number} を返す")
+            return max_number
+        else:
+            # 最大番号が2個ある場合、次の番号を返す
+            next_number = max_number + 1
+            print(f"デバッグ: 番号 {max_number} は2個存在、次の番号 {next_number} を返す")
+            return next_number
     
     def check_file_exists(self, new_filename: str, extension: str) -> bool:
         """指定されたファイル名が既に存在するかチェック"""
