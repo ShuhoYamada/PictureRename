@@ -19,6 +19,18 @@ class FileHandler:
     # ファイル名禁止文字（Windows + Mac対応）
     FORBIDDEN_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
     
+    def _natural_sort_key(self, filepath: str):
+        """自然順序ソート用のキー関数（数字を数値として認識）"""
+        filename = Path(filepath).name
+        # 数字部分を数値として、文字部分をそのまま返すリストを生成
+        parts = []
+        for part in re.split(r'(\d+)', filename):
+            if part.isdigit():
+                parts.append(int(part))
+            else:
+                parts.append(part.lower())  # 大文字小文字を統一
+        return parts
+    
     def __init__(self):
         self.image_folder: Optional[str] = None
         self.image_files: List[str] = []
@@ -58,8 +70,13 @@ class FileHandler:
                                                "対応形式: jpg, png, heic")
                 return False
             
-            # ファイル名でソート
-            image_files.sort()
+            # 自然順序ソート（数字を数値として認識）
+            image_files.sort(key=self._natural_sort_key)
+            print(f"デバッグ: 画像ファイルを自然順序でソート完了 ({len(image_files)}ファイル)")
+            for i, file in enumerate(image_files[:5]):  # 最初の5ファイルを表示
+                print(f"  {i+1}: {Path(file).name}")
+            if len(image_files) > 5:
+                print(f"  ... (他{len(image_files)-5}ファイル)")
             self.image_files = image_files
             self.current_index = 0
             
